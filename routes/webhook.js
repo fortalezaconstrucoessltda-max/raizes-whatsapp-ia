@@ -4,7 +4,7 @@
  */
 import { Router } from 'express';
 import { logger } from '../lib/logger.js';
-import { enviarTexto, normalizarFone } from '../lib/zapi.js';
+import { enviarTexto, normalizarFone, simularDigitando } from '../lib/zapi.js';
 import {
   buscarLeadPorFone, criarLeadWhatsApp, registrarMensagem,
   atualizarEtapa, formatarHistorico,
@@ -29,7 +29,7 @@ router.post('/', async (req, res) => {
   res.status(200).json({ ok: true }); // responde imediatamente ao Z-API
 
   const payload = req.body;
-  logger.debug('[WEBHOOK] payload recebido', { type: payload?.type });
+  logger.info('[WEBHOOK] payload recebido', { type: payload?.type, phone: payload?.phone });
 
   try {
     // ── Status de entrega/leitura ──────────────────────────────────────────
@@ -88,7 +88,6 @@ router.post('/', async (req, res) => {
           isAudio = true;
           logger.info('[WEBHOOK] áudio transcrito', { fone, chars: texto.length });
         } else {
-          // Whisper não disponível — avisa o lead
           await enviarTexto(fone,
             'Recebi seu áudio! No momento não consigo transcrever mensagens de voz. ' +
             'Poderia escrever sua mensagem por texto? Será um prazer ajudar! 🌱'
@@ -140,11 +139,12 @@ router.post('/', async (req, res) => {
       return;
     }
 
-    // ── Detectar idioma (async — com fallback IA opcional) ─────────────────
-    const idioma = await detectarIdioma(texto, true);
-
     // ── Buscar ou criar lead ───────────────────────────────────────────────
     let lead = await buscarLeadPorFone(fone);
+
+    // ── Detectar idioma — trava no idioma já definido do lead ──────────────
+    const idiomaDetectado = lead?.idioma ? lead.idioma : await detectarIdioma(texto, true);
+    const idioma = idiomaDetectado;
 
     if (!lead) {
       lead = await criarLeadWhatsApp({
@@ -170,7 +170,6 @@ router.post('/', async (req, res) => {
       return;
     }
 
-    // Propagar idioma detectado ao objeto lead para o agente usar
     if (idioma && !lead.idioma) lead.idioma = idioma;
 
     // ── Rotear para agente ────────────────────────────────────────────────
@@ -195,7 +194,8 @@ router.post('/', async (req, res) => {
     const resumoEquipe = extrairResumoEquipe(respostaRaw);
     const resposta = limparResposta(respostaRaw);
 
-    // ── Enviar resposta ───────────────────────────────────────────────────
+    // ── Enviar resposta com typing indicator ─────────────────────────────
+    await simularDigitando(fone, resposta);
     await enviarTexto(fone, resposta);
 
     // ── Atualizar CRM ─────────────────────────────────────────────────────
