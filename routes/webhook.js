@@ -143,7 +143,7 @@ router.post('/', async (req, res) => {
     let lead = await buscarLeadPorFone(fone);
 
     // ── Detectar idioma — trava no idioma já definido do lead ──────────────
-    const idiomaDetectado = lead?.idioma ? lead.idioma : await detectarIdioma(texto, true);
+    const idiomaDetectado = lead?.idioma ? lead.idioma : await detectarIdioma(texto);
     const idioma = idiomaDetectado;
 
     if (!lead) {
