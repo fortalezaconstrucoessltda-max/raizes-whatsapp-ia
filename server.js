@@ -161,6 +161,12 @@ app.listen(PORT, async () => {
     );
   }
 });
+process.on('uncaughtException', (err) => {
+  console.error('[FATAL] uncaughtException', err.message, err.stack);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[FATAL] unhandledRejection', String(reason));
+});
 
 process.on('SIGTERM', () => { logger.info('[SERVER] encerrando...'); process.exit(0); });
 process.on('SIGINT',  () => { logger.info('[SERVER] encerrando...'); process.exit(0); });
